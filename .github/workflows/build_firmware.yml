@@ -68,21 +68,11 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build PlatformIO Project
-        run: pio run --project-dir firmware
-        
-      - name: Create version JSON file for Atomic14 Rainbow
-        run: |
-          cat <<EOF > firmware/.pio/build/atomic14-esp32-rainbow-01/version.json
-          {
-            "version": "$VERSION",
-            "commit_hash": "$COMMIT_HASH",
-            "build_number": "$BUILD_NUMBER",
-            "full_version": "$FULL_VERSION"
-          }
-          EOF
+        run: pio run -e cheap-yellow-display --project-dir firmware
 
       - name: Create version JSON file for Cheap Yellow Display
         run: |
+          mkdir -p firmware/.pio/build/cheap-yellow-display
           cat <<EOF > firmware/.pio/build/cheap-yellow-display/version.json
           {
             "version": "$VERSION",
@@ -92,31 +82,12 @@ jobs:
           }
           EOF
 
-      - name: Rename esp32 rainbow firmware files with version
-        run: |
-          mv firmware/.pio/build/atomic14-esp32-rainbow-01/bootloader.bin firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-bootloader-${FULL_VERSION}.bin
-          mv firmware/.pio/build/atomic14-esp32-rainbow-01/firmware.bin firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-firmware-${FULL_VERSION}.bin
-          mv firmware/.pio/build/atomic14-esp32-rainbow-01/partitions.bin firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-partitions-${FULL_VERSION}.bin
-          mv firmware/.pio/build/atomic14-esp32-rainbow-01/version.json firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-version-${FULL_VERSION}.json
-
       - name: Rename cheap yellow display firmware files with version
         run: |
           mv firmware/.pio/build/cheap-yellow-display/bootloader.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-bootloader-${FULL_VERSION}.bin
           mv firmware/.pio/build/cheap-yellow-display/firmware.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-firmware-${FULL_VERSION}.bin
           mv firmware/.pio/build/cheap-yellow-display/partitions.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-partitions-${FULL_VERSION}.bin
           mv firmware/.pio/build/cheap-yellow-display/version.json firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-version-${FULL_VERSION}.json
-
-      - name: Upload esp32 rainbow Firmware Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: esp32-rainbow-firmware
-          path: |
-            firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-bootloader-*.bin
-            firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-firmware-*.bin
-            firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-partitions-*.bin
-            firmware/.pio/build/atomic14-esp32-rainbow-01/esp32-rainbow-version-*.json
-          overwrite: true
-          if-no-files-found: error
 
       - name: Upload CYD Firmware Artifacts
         uses: actions/upload-artifact@v4
@@ -135,12 +106,6 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - name: Download esp32 rainbow firmware artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: esp32-rainbow-firmware
-          path: esp32-rainbow-firmware
-
       - name: Download CYD firmware artifacts
         uses: actions/download-artifact@v4
         with:
@@ -151,10 +116,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            esp32-rainbow-firmware/esp32-rainbow-bootloader-*.bin
-            esp32-rainbow-firmware/esp32-rainbow-firmware-*.bin
-            esp32-rainbow-firmware/esp32-rainbow-partitions-*.bin
-            esp32-rainbow-firmware/esp32-rainbow-version-*.json
             cyd-firmware/cheap-yellow-display-bootloader-*.bin
             cyd-firmware/cheap-yellow-display-firmware-*.bin
             cyd-firmware/cheap-yellow-display-partitions-*.bin
