@@ -465,6 +465,10 @@ void EmulatorScreen::openMenuIfRequested()
 void EmulatorScreen::setCydHandedness(bool rightHanded)
 {
   renderer->setCydHandedness(rightHanded);
+  if (m_cydTouchKeyboard != nullptr)
+  {
+    m_cydTouchKeyboard->setRightHanded(rightHanded);
+  }
 }
 
 bool EmulatorScreen::usesCydTouch() const
@@ -494,7 +498,12 @@ void EmulatorScreen::setCydTouchKeyboard(CydTouchKeyboard *keyboard, ISettings *
   m_cydSettings = settings;
   if (settings != nullptr)
   {
-    renderer->setCydHandedness(settings->isCydRightHanded());
+    const bool rightHanded = settings->isCydRightHanded();
+    renderer->setCydHandedness(rightHanded);
+    if (keyboard != nullptr)
+    {
+      keyboard->setRightHanded(rightHanded);
+    }
     CydTouch::setCalibration(settings->getCydTouchCalibration());
   }
   renderer->setCydTouchKeyboard(keyboard);

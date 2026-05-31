@@ -34,12 +34,12 @@ static const int CYD_CAPS_KEY_INDEX = 10;
 static const int CYD_SYM_KEY_INDEX = 11;
 static const int CYD_ROW_SELECT_INDEX = 12;
 static const int CYD_MENU_KEY_INDEX = 16;
+static const int CYD_SPECTRUM_KEY_INDEX = 17;
 static const int CYD_ROW_HIT_PAD_X = 6;
 static const int CYD_ROW_HIT_PAD_TOP = 14;
 static const int CYD_ROW_HIT_PAD_BOTTOM = 4;
-static const int CYD_LEFT_STRIP_PLAYFIELD_X = CYD_MODIFIER_KEY_W + 8;
 
-static const int CYD_KEY_COUNT = 17;
+static const int CYD_KEY_COUNT = 18;
 static CydKeyDef s_keys[CYD_KEY_COUNT];
 
 static const CydKeyRowDef kKeyRows[CydTouchKeyboard::ROW_COUNT] = {
@@ -160,6 +160,13 @@ static void layoutKeyGeometry(bool rightHanded)
         rowLabels[rowIndex],
         rowIndex};
   }
+  s_keys[CYD_SPECTRUM_KEY_INDEX] = {
+      (int16_t)cydSpectrumOriginX(rightHanded),
+      (int16_t)cydSpectrumOriginY(),
+      (int16_t)CYD_SPECTRUM_W,
+      (int16_t)CYD_SPECTRUM_H,
+      SPECKEY_NONE,
+      nullptr};
 }
 
 static void layoutKeys(bool rightHanded)
@@ -168,7 +175,7 @@ static void layoutKeys(bool rightHanded)
 }
 
 CydTouchKeyboard::CydTouchKeyboard(KeyEventType keyEvent, bool rightHanded, KeyPressType pressEvent)
-    : m_keyEvent(keyEvent), m_pressKeyEvent(pressEvent)
+    : m_keyEvent(keyEvent), m_pressKeyEvent(pressEvent), m_rightHanded(rightHanded)
 {
   layoutKeys(rightHanded);
   m_keys = s_keys;
@@ -178,6 +185,7 @@ CydTouchKeyboard::CydTouchKeyboard(KeyEventType keyEvent, bool rightHanded, KeyP
 
 void CydTouchKeyboard::setRightHanded(bool rightHanded)
 {
+  m_rightHanded = rightHanded;
   layoutKeys(rightHanded);
   m_highlightIndex = -1;
   m_lastDrawnHighlight = -1;
@@ -192,6 +200,7 @@ void CydTouchKeyboard::setEnabled(bool enabled)
 {
   if (!enabled)
   {
+    m_spectrumTapArmed = false;
     if (m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
     {
       releaseActiveKey();
@@ -239,7 +248,7 @@ void CydTouchKeyboard::selectRow(int8_t row)
     return;
   }
   m_rowSelectLatched = row;
-  const CydKeyRowDef &rowDef = bottomRowDef(row, s_rightHanded);
+  const CydKeyRowDef &rowDef = bottomRowDef(row, m_rightHanded);
   for (int i = 0; i < BOTTOM_KEY_COUNT; i++)
   {
     const CydBottomKeySlot &slot = rowDef.keys[i];
@@ -321,6 +330,11 @@ void CydTouchKeyboard::releaseActiveKey()
     m_modifierVisualDirty = true;
     return;
   }
+  if (m_highlightIndex == CYD_SPECTRUM_KEY_INDEX)
+  {
+    m_highlightIndex = -1;
+    return;
+  }
   if (m_activeKey == SPECKEY_NONE)
   {
     m_highlightIndex = -1;
@@ -393,6 +407,10 @@ void CydTouchKeyboard::fillRectAvoidingKeys(Display &tft, int16_t x, int16_t y, 
       bool inKey = false;
       for (size_t i = 0; i < CYD_KEY_COUNT; i++)
       {
+        if (i == (size_t)CYD_SPECTRUM_KEY_INDEX)
+        {
+          continue;
+        }
         const CydKeyDef &k = s_keys[i];
         if (col >= k.x && col < k.x + k.w && row >= k.y && row < k.y + k.h)
         {
@@ -418,7 +436,7 @@ void CydTouchKeyboard::fillRectAvoidingKeys(Display &tft, int16_t x, int16_t y, 
 
 void CydTouchKeyboard::drawKey(Display &tft, size_t index) const
 {
-  if (index >= m_keyCount)
+  if (index >= m_keyCount || index == (size_t)CYD_SPECTRUM_KEY_INDEX)
   {
     return;
   }
@@ -536,6 +554,12 @@ void CydTouchKeyboard::pressKeyAt(int index)
   }
   const CydKeyDef &def = m_keys[index];
   m_highlightIndex = index;
+  if (index == CYD_SPECTRUM_KEY_INDEX)
+  {
+    m_activeKey = SPECKEY_NONE;
+    m_spectrumTapArmed = true;
+    return;
+  }
   if (isRowSelectKey(def))
   {
     m_activeRowSelect = def.rowSelectIndex;
@@ -574,25 +598,6 @@ void CydTouchKeyboard::pressKeyAt(int index)
   m_keyEvent(key, true);
 }
 
-bool CydTouchKeyboard::isInPlayfield(int16_t x, int16_t y) const
-{
-  const int16_t modX = modifierColumnX(s_rightHanded);
-  if (s_rightHanded)
-  {
-    if (x >= modX - CYD_ROW_HIT_PAD_X)
-    {
-      return false;
-    }
-  }
-  else if (x < modX + CYD_MODIFIER_KEY_W + (CYD_LEFT_STRIP_PLAYFIELD_X - CYD_MODIFIER_KEY_W))
-  {
-    return false;
-  }
-  const int specX = cydSpectrumOriginX(s_rightHanded);
-  const int specY = cydSpectrumOriginY();
-  return x >= specX && x < specX + CYD_SPECTRUM_W && y >= specY && y < specY + CYD_SPECTRUM_H;
-}
-
 bool CydTouchKeyboard::hitKeyRect(const CydKeyDef &k, int16_t x, int16_t y) const
 {
   int16_t x0 = k.x;
@@ -625,6 +630,19 @@ bool CydTouchKeyboard::hitKeyRect(const CydKeyDef &k, int16_t x, int16_t y) cons
     {
       y1 += CYD_ROW_HIT_PAD_BOTTOM;
     }
+    // R3/R4: extend into the side-border gap so taps near the modifier column
+    // are not misclassified as the spectrum drawing area.
+    if (k.rowSelectIndex >= 2)
+    {
+      if (s_rightHanded)
+      {
+        x0 -= CYD_SPECTRUM_SIDE_BORDER;
+      }
+      else if (x1 < 320)
+      {
+        x1 = (int16_t)(x1 + CYD_SPECTRUM_SIDE_BORDER);
+      }
+    }
   }
   return x >= x0 && x < x1 && y >= y0 && y < y1;
 }
@@ -654,6 +672,10 @@ int CydTouchKeyboard::hitTest(int16_t x, int16_t y) const
       return (int)i;
     }
   }
+  if (hitKeyRect(m_keys[CYD_SPECTRUM_KEY_INDEX], x, y))
+  {
+    return CYD_SPECTRUM_KEY_INDEX;
+  }
   return -1;
 }
 
@@ -672,35 +694,36 @@ void CydTouchKeyboard::pollTouch()
   int16_t y = 0;
   if (!readTouch(x, y))
   {
-    cydKeyboardThemeClearPlayfieldLatch();
-    if (m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
+    cydKeyboardThemeClearSpectrumScreenLatch();
+    const bool toggleSpectrum = m_spectrumTapArmed;
+    if (m_highlightIndex >= 0 || m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
     {
       if (++m_touchMissReads >= 3)
       {
         releaseActiveKey();
         m_touchMissReads = 0;
       }
+      else
+      {
+        return;
+      }
+    }
+    if (toggleSpectrum)
+    {
+      m_spectrumTapArmed = false;
+      if (cydKeyboardThemeOnSpectrumScreenTap())
+      {
+        invalidateOverlay();
+      }
     }
     return;
   }
   m_touchMissReads = 0;
-  int index = hitTest(x, y);
+  const int index = hitTest(x, y);
   if (index < 0)
   {
-    if (isInPlayfield(x, y))
-    {
-      if (cydKeyboardThemeOnPlayfieldTap())
-      {
-        invalidateOverlay();
-      }
-      if (m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
-      {
-        releaseActiveKey();
-      }
-      return;
-    }
-    cydKeyboardThemeClearPlayfieldLatch();
-    if (m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
+    cydKeyboardThemeClearSpectrumScreenLatch();
+    if (m_highlightIndex >= 0 || m_activeKey != SPECKEY_NONE || m_activeRowSelect >= 0)
     {
       releaseActiveKey();
     }
@@ -708,10 +731,15 @@ void CydTouchKeyboard::pollTouch()
   }
   const CydKeyDef &hit = m_keys[index];
   if (m_highlightIndex == index &&
-      (m_activeRowSelect == hit.rowSelectIndex ||
+      (index == CYD_SPECTRUM_KEY_INDEX ||
+       m_activeRowSelect == hit.rowSelectIndex ||
        (m_activeRowSelect < 0 && m_activeKey == hit.key)))
   {
     return;
+  }
+  if (index != CYD_SPECTRUM_KEY_INDEX)
+  {
+    m_spectrumTapArmed = false;
   }
   releaseActiveKey();
   pressKeyAt(index);

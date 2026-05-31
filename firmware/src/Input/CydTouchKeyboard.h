@@ -71,6 +71,8 @@ private:
   volatile bool m_bottomRowVisualDirty = false;
   volatile bool m_rowSelectVisualDirty = false;
   volatile int m_touchMissReads = 0;
+  bool m_spectrumTapArmed = false;
+  bool m_rightHanded = false;
 
   static void keyboardTask(void *arg);
   void drawKey(Display &tft, size_t index) const;
@@ -79,7 +81,6 @@ private:
   void redrawRowSelectKeys(Display &tft);
   void pollTouch();
   bool readTouch(int16_t &x, int16_t &y);
-  bool isInPlayfield(int16_t x, int16_t y) const;
   int hitTest(int16_t x, int16_t y) const;
   void pressKeyAt(int index);
   void releaseActiveKey();

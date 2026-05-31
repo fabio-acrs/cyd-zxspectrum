@@ -42,8 +42,6 @@ Screenshots demonstrate the emulator using the best game ever written for the ZX
 
 [▶ Watch on YouTube](https://youtu.be/5wpk6Go0m5Q).
 
-I also plan a feature inspired by the old cardboard keyboard overlays: if there’s a matching <file>.KEY alongside a tape image (for example game.tzx + game.key), the on‑screen keyboard will temporarily relabel the keys with game-specific actions to act as a live overlay/cheat sheet.
-
 ## Hardware
 
 Target board: **ESP32-2432S028** (320×240 ILI9341 TFT, XPT2046 touch, microSD on SPI).
@@ -166,9 +164,9 @@ python3 utils/png_converter.py utils/lom-keyboard --batch \
 
 Do **not** run `utils/lom-keyboard --batch` without `--pack-only` unless you intend to replace the default keys compiled into the firmware (that writes into `firmware/src/Screens/images/keyboard/`).
 
-Copy `lom.kbd` next to `lom.tzx` on the card. After the tape finishes loading, the pack is read into the same **96 KiB workspace** used for tape loading (no extra heap for the keyboard). Serial log: `Keyboard pack loaded into workspace`.
+Copy `lom.kbd` next to `lom.tzx` on the card. After the tape finishes loading, the pack is opened from SD (streamed on demand; no extra heap buffer). Serial log: `Keyboard pack opened: ...`.
 
-**Tap the Spectrum screen** to switch between game art and built-in keys — only when a pack was loaded for the current game. Loading another tape resets to built-in first, then loads the new game’s pack if present. Pack size must fit in 96 KiB (~47 keys at 32×26, plus optional `blank`).
+**Tap the 256×192 drawing area inside the border** (not the border strips or on-screen keyboard) and release to switch between game pack art and built-in keys when a `.kbd` pack is loaded. Loading another tape resets to built-in first, then loads the new game’s pack if present.
 
 ## Games and storage
 

@@ -10,6 +10,6 @@ void cydKeyboardThemeResetToBuiltin();
 bool cydKeyboardThemeHasGamePack();
 bool cydKeyboardThemeUseCustom();
 bool cydKeyboardThemeTryLoadForTape(const char *tapePath);
-bool cydKeyboardThemeOnPlayfieldTap();
-void cydKeyboardThemeClearPlayfieldLatch();
+bool cydKeyboardThemeOnSpectrumScreenTap();
+void cydKeyboardThemeClearSpectrumScreenLatch();
 bool cydKeyboardThemeLoadImage(const char *label, size_t keyIndex, CydKeyImage &out);

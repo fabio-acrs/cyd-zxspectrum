@@ -41,7 +41,6 @@
 #ifndef CYD_COMMAND_ROW_H
 #define CYD_COMMAND_ROW_H 8
 #endif
-
 #define CYD_KEYBOARD_ROW_Y (CYD_EMULATOR_Y + CYD_EMULATOR_H)
 
 #define CYD_SPECTRUM_W 256
@@ -73,6 +72,14 @@ inline int cydSpectrumOriginX(bool rightHanded)
 inline int cydSpectrumOriginY()
 {
   return CYD_EMULATOR_Y + CYD_SPECTRUM_BORDER_TOP;
+}
+
+/** 256×192 pixel drawing area; moves with left/right-handed emulator origin. */
+inline bool cydPointInSpectrumDrawing(bool rightHanded, int x, int y)
+{
+  const int specX = cydSpectrumOriginX(rightHanded);
+  const int specY = cydSpectrumOriginY();
+  return x >= specX && x < specX + CYD_SPECTRUM_W && y >= specY && y < specY + CYD_SPECTRUM_H;
 }
 
 #endif

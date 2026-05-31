@@ -14,7 +14,7 @@ static constexpr size_t CYD_MAX_NAME_LEN = 31;
 static IFiles *s_files = nullptr;
 static bool s_gamePackLoaded = false;
 static bool s_useCustom = false;
-static bool s_playfieldLatched = false;
+static bool s_toggleLatched = false;
 
 static uint16_t s_scratch[32 * 32];
 
@@ -349,25 +349,21 @@ bool cydKeyboardThemeTryLoadForTape(const char *tapePath)
   return true;
 }
 
-bool cydKeyboardThemeOnPlayfieldTap()
+bool cydKeyboardThemeOnSpectrumScreenTap()
 {
-  if (!s_gamePackLoaded)
+  if (!s_gamePackLoaded || s_toggleLatched)
   {
     return false;
   }
-  if (s_playfieldLatched)
-  {
-    return false;
-  }
-  s_playfieldLatched = true;
+  s_toggleLatched = true;
   s_useCustom = !s_useCustom;
   Serial.printf("Keyboard images: %s\n", s_useCustom ? "game pack" : "built-in");
   return true;
 }
 
-void cydKeyboardThemeClearPlayfieldLatch()
+void cydKeyboardThemeClearSpectrumScreenLatch()
 {
-  s_playfieldLatched = false;
+  s_toggleLatched = false;
 }
 
 bool cydKeyboardThemeLoadImage(const char *label, size_t keyIndex, CydKeyImage &out)
