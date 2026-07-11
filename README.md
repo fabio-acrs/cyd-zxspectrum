@@ -55,6 +55,63 @@ Target board: **ESP32-2432S028** (320×240 ILI9341 TFT, XPT2046 touch, microSD o
 
 The firmware sources remain under `firmware/`, but the project is now configured from `platformio.ini` at the repository root so the PlatformIO IDE can open this repo directly.
 
+## Display and touchscreen configuration
+
+The root PlatformIO configuration in `platformio.ini` controls both the TFT panel and the resistive touch controller for the CYD target.
+
+### TFT orientation
+
+The display orientation is selected with the build flag `TFT_ILI9341_ROTATION`. The supported values are:
+
+- `ILI9341_ROTATION_PORTRAIT`
+- `ILI9341_ROTATION_PORTRAIT_INVERTED`
+- `ILI9341_ROTATION_LANDSCAPE_NORMAL`
+- `ILI9341_ROTATION_LANDSCAPE_INVERTED`
+
+The current build target uses a portrait-style mapping for the mounted panel, which is why the project defines `TFT_ILI9341_ROTATION` explicitly in `platformio.ini`.
+
+### Touchscreen alignment
+
+Touch input is mapped separately from the TFT driver. To keep the touch coordinates aligned with the same display orientation that the user sees, the project also defines `CYD_TOUCH_ROTATION` in the same environment. In practice, this should match the TFT rotation macro that is active for the panel wiring and mounting orientation.
+
+The following settings are relevant for the XPT2046 touchscreen wiring:
+
+- `CYD_TOUCH_CS`
+- `CYD_TOUCH_IRQ`
+- `CYD_TOUCH_CLK`
+- `CYD_TOUCH_MISO`
+- `CYD_TOUCH_MOSI`
+
+If the display is rotated physically, adjust the rotation macros first and then reflash the board. If the touch seems inverted or displaced after changing orientation, run the calibration flow again so the stored touch calibration is regenerated for the new geometry.
+
+### PlatformIO usage in this repository
+
+This repository is set up so that the root folder is the PlatformIO project root. The root `platformio.ini` points PlatformIO at the firmware sources under `firmware/` by defining:
+
+- `src_dir = firmware/src`
+- `include_dir = firmware/include`
+- `lib_dir = firmware/lib`
+- `test_dir = firmware/test`
+- `data_dir = firmware/data`
+
+The main environment is `cheap-yellow-display`. Typical commands from the repository root are:
+
+```sh
+# Build the firmware
+.pio-venv/bin/pio run -e cheap-yellow-display
+
+# Upload to the connected board
+.pio-venv/bin/pio run -e cheap-yellow-display -t upload
+
+# Erase flash and force a fresh calibration on next boot
+.pio-venv/bin/pio run -e cheap-yellow-display -t erase
+
+# Open the serial monitor
+.pio-venv/bin/pio device monitor -b 115200
+```
+
+In VS Code, opening the repository root with the PlatformIO IDE extension exposes the `cheap-yellow-display` environment directly in the PlatformIO sidebar, so you can build, upload, erase, and monitor the firmware from there without switching to a nested project folder.
+
 ## Install firmware in your browser
 
 **[Install CYD ZX Spectrum firmware](https://kf106.github.io/cyd-zxspectrum/)**
