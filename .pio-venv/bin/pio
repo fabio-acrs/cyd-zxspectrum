@@ -1,4 +1,4 @@
-#!/home/kf106/GIT/esp/cyd-zxspectrum/.pio-venv/bin/python3
+#!/home/fly/Developer/cyd-zxspectrum/.pio-venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

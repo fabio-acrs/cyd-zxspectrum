@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /home/kf106/GIT/esp/cyd-zxspectrum/.pio-venv
+set -gx VIRTUAL_ENV /home/fly/Developer/cyd-zxspectrum/.pio-venv
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH

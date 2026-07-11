@@ -35,6 +35,22 @@
 #define ILI9341_VSCRSADD 0x37
 #define ILI9341_PIXFMT 0x3A
 
+#define ILI9341_ROTATION_PORTRAIT (TFT_MAD_MY | TFT_MAD_BGR)
+#define ILI9341_ROTATION_PORTRAIT_INVERTED (TFT_MAD_MX | TFT_MAD_BGR)
+#define ILI9341_ROTATION_LANDSCAPE_NORMAL (TFT_MAD_MV | TFT_MAD_BGR)
+#define ILI9341_ROTATION_LANDSCAPE_INVERTED (TFT_MAD_MX | TFT_MAD_MY | TFT_MAD_MV | TFT_MAD_BGR)
+
+// Default display orientation for the CYD board when held in landscape with USB on the right.
+// This produces 320x240 drawing coordinates with (0,0) at the top-left of the visible screen.
+// If the panel wiring or mounting requires a different rotation, override with TFT_ILI9341_ROTATION.
+#ifndef ILI9341_ROTATION
+  #ifdef TFT_ILI9341_ROTATION
+    #define ILI9341_ROTATION TFT_ILI9341_ROTATION
+  #else
+    #define ILI9341_ROTATION ILI9341_ROTATION_LANDSCAPE_NORMAL
+  #endif
+#endif
+
 #define ILI9341_WRDISBV 0x51
 #define ILI9341_RDDISBV 0x52
 #define ILI9341_WRCTRLD 0x53
@@ -86,7 +102,7 @@ ILI9341::ILI9341(gpio_num_t cs, gpio_num_t dc, gpio_num_t rst, gpio_num_t bl, in
     SEND_CMD_DATA(ILI9341_PWCTR2, 0x10);                                                                                      // Power control, SAP[2:0], BT[3:0]
     SEND_CMD_DATA(ILI9341_VMCTR1, 0x3E, 0x28);                                                                                // VCM control
     SEND_CMD_DATA(ILI9341_VMCTR2, 0x86);                                                                                      // VCM control2
-    SEND_CMD_DATA(ILI9341_MADCTL, TFT_MAD_MX | TFT_MAD_RGB);                                                    // Rotation 0 (portrait mode)
+    SEND_CMD_DATA(ILI9341_MADCTL, ILI9341_ROTATION);                                                                          // Landscape orientation
     SEND_CMD_DATA(ILI9341_PIXFMT, 0x55);                                                                                      // Pixel Format Set
     SEND_CMD_DATA(ILI9341_FRMCTR1, 0x00, 0x13);                                                                               // Frame Rate Control (100Hz)
     SEND_CMD_DATA(ILI9341_DFUNCTR, 0x08, 0x82, 0x27);                                                                         // Display Function Control
@@ -94,7 +110,7 @@ ILI9341::ILI9341(gpio_num_t cs, gpio_num_t dc, gpio_num_t rst, gpio_num_t bl, in
     SEND_CMD_DATA(ILI9341_GAMMASET, 0x01);                                                                                    // Gamma curve selected
     SEND_CMD_DATA(ILI9341_GMCTRP1, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00); // Set Gamma
     SEND_CMD_DATA(ILI9341_GMCTRN1, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, 0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F); // Set Gamma
-    SEND_CMD_DATA(TFT_MADCTL, TFT_MAD_ML | TFT_MAD_MV | TFT_MAD_BGR);
+    SEND_CMD_DATA(ILI9341_MADCTL, ILI9341_ROTATION);
     SEND_CMD_DATA(0x11); // Exit Sleep
     delay(120);
     SEND_CMD_DATA(0x29); // Display on

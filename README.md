@@ -53,7 +53,7 @@ Target board: **ESP32-2432S028** (320×240 ILI9341 TFT, XPT2046 touch, microSD o
 | SD card | VSPI: CS 5, CLK 18, MISO 19, MOSI 23 (separate from TFT HSPI) |
 | Buzzer (PWM) | 26 |
 
-Other ESP32 boards from the upstream project may still build from `firmware/platformio.ini`, but **only `cheap-yellow-display` is the focus here**.
+The firmware sources remain under `firmware/`, but the project is now configured from `platformio.ini` at the repository root so the PlatformIO IDE can open this repo directly.
 
 ## Install firmware in your browser
 
@@ -98,32 +98,32 @@ From the repository root:
 
 ```sh
 # Build
-.pio-venv/bin/pio run -e cheap-yellow-display --project-dir firmware
+.pio-venv/bin/pio run -e cheap-yellow-display
 
 # Flash (CYD connected by USB; on Ubuntu usually /dev/ttyUSB0, sometimes /dev/ttyACM0)
-.pio-venv/bin/pio run -e cheap-yellow-display --project-dir firmware -t upload
+.pio-venv/bin/pio run -e cheap-yellow-display -t upload
 
 # Serial monitor (Ctrl+C to exit)
-.pio-venv/bin/pio device monitor --project-dir firmware -b 115200
+.pio-venv/bin/pio device monitor -b 115200
 ```
 
 If upload fails to find the port, list devices and pass the port explicitly:
 
 ```sh
 .pio-venv/bin/pio device list
-.pio-venv/bin/pio run -e cheap-yellow-display --project-dir firmware -t upload --upload-port /dev/ttyUSB0
+.pio-venv/bin/pio run -e cheap-yellow-display -t upload --upload-port /dev/ttyUSB0
 ```
 
 To erase flash and settings (forces touch calibration on next boot):
 
 ```sh
-.pio-venv/bin/pio run -e cheap-yellow-display --project-dir firmware -t erase
-.pio-venv/bin/pio run -e cheap-yellow-display --project-dir firmware -t upload
+.pio-venv/bin/pio run -e cheap-yellow-display -t erase
+.pio-venv/bin/pio run -e cheap-yellow-display -t upload
 ```
 
 ### Optional: VS Code
 
-According to Atomic14 you can also open the `firmware` folder in [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE](https://platformio.org/install/ide?install=vscode) extension and use the **cheap-yellow-display** environment from the PlatformIO sidebar, although I haven't tested this.
+Open the repository root in [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE](https://platformio.org/install/ide?install=vscode) extension. The root `platformio.ini` now points at the firmware sources under `firmware/`, so the **cheap-yellow-display** environment is available directly from the PlatformIO sidebar.
 
 ## First boot
 

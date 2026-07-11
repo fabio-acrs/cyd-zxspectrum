@@ -3,10 +3,12 @@ name: Build Firmware
 on:
   push:
     paths:
+      - 'platformio.ini'
       - 'firmware/**'
       - '.github/workflows/build_firmware.yml'
   pull_request:
     paths:
+      - 'platformio.ini'
       - 'firmware/**'
       - '.github/workflows/build_firmware.yml'
   release:
@@ -68,12 +70,12 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build PlatformIO Project
-        run: pio run -e cheap-yellow-display --project-dir firmware
+        run: pio run -e cheap-yellow-display
 
       - name: Create version JSON file for Cheap Yellow Display
         run: |
-          mkdir -p firmware/.pio/build/cheap-yellow-display
-          cat <<EOF > firmware/.pio/build/cheap-yellow-display/version.json
+          mkdir -p .pio/build/cheap-yellow-display
+          cat <<EOF > .pio/build/cheap-yellow-display/version.json
           {
             "version": "$VERSION",
             "commit_hash": "$COMMIT_HASH",
@@ -84,20 +86,20 @@ jobs:
 
       - name: Rename cheap yellow display firmware files with version
         run: |
-          mv firmware/.pio/build/cheap-yellow-display/bootloader.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-bootloader-${FULL_VERSION}.bin
-          mv firmware/.pio/build/cheap-yellow-display/firmware.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-firmware-${FULL_VERSION}.bin
-          mv firmware/.pio/build/cheap-yellow-display/partitions.bin firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-partitions-${FULL_VERSION}.bin
-          mv firmware/.pio/build/cheap-yellow-display/version.json firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-version-${FULL_VERSION}.json
+          mv .pio/build/cheap-yellow-display/bootloader.bin .pio/build/cheap-yellow-display/cheap-yellow-display-bootloader-${FULL_VERSION}.bin
+          mv .pio/build/cheap-yellow-display/firmware.bin .pio/build/cheap-yellow-display/cheap-yellow-display-firmware-${FULL_VERSION}.bin
+          mv .pio/build/cheap-yellow-display/partitions.bin .pio/build/cheap-yellow-display/cheap-yellow-display-partitions-${FULL_VERSION}.bin
+          mv .pio/build/cheap-yellow-display/version.json .pio/build/cheap-yellow-display/cheap-yellow-display-version-${FULL_VERSION}.json
 
       - name: Upload CYD Firmware Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cyd-firmware
           path: |
-            firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-bootloader-*.bin
-            firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-firmware-*.bin
-            firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-partitions-*.bin
-            firmware/.pio/build/cheap-yellow-display/cheap-yellow-display-version-*.json
+            .pio/build/cheap-yellow-display/cheap-yellow-display-bootloader-*.bin
+            .pio/build/cheap-yellow-display/cheap-yellow-display-firmware-*.bin
+            .pio/build/cheap-yellow-display/cheap-yellow-display-partitions-*.bin
+            .pio/build/cheap-yellow-display/cheap-yellow-display-version-*.json
           overwrite: true
           if-no-files-found: error
 

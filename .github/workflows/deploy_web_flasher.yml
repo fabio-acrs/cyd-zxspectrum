@@ -54,7 +54,7 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build CYD firmware
-        run: pio run -e cheap-yellow-display --project-dir firmware
+        run: pio run -e cheap-yellow-display
 
       - name: Assemble flasher site
         run: |
@@ -62,7 +62,7 @@ jobs:
           rm -rf "$SITE"
           mkdir -p "$SITE"
           cp docs/flasher/index.html "$SITE/"
-          BUILD=firmware/.pio/build/cheap-yellow-display
+          BUILD=.pio/build/cheap-yellow-display
           cp "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/firmware.bin" "$SITE/"
           BOOT_APP0=$(find ~/.platformio/packages/framework-arduinoespressif32 -path '*/boot_app0.bin' | head -1)
           if [ -z "$BOOT_APP0" ]; then

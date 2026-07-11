@@ -48,8 +48,8 @@
 #define TFT_MAD_MX  0x40
 #define TFT_MAD_MV  0x20
 #define TFT_MAD_ML  0x10
-#define TFT_MAD_RGB 0x00
-#define TFT_MAD_BGR 0x08
+#define TFT_MAD_RGB 0x08
+#define TFT_MAD_BGR 0x00
 #define TFT_MAD_MH  0x04
 #define TFT_MAD_SS  0x02
 #define TFT_MAD_GS  0x01

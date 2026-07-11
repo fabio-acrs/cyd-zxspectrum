@@ -3,11 +3,33 @@
  */
 #include "plate_touch.h"
 #include "plate_touch_hw.h"
+#include "../../TFT/TFTDisplay.h"
 
 #include <Arduino.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#ifndef ILI9341_ROTATION_PORTRAIT
+#define ILI9341_ROTATION_PORTRAIT (TFT_MAD_MY | TFT_MAD_BGR)
+#endif
+#ifndef ILI9341_ROTATION_PORTRAIT_INVERTED
+#define ILI9341_ROTATION_PORTRAIT_INVERTED (TFT_MAD_MX | TFT_MAD_BGR)
+#endif
+#ifndef ILI9341_ROTATION_LANDSCAPE_NORMAL
+#define ILI9341_ROTATION_LANDSCAPE_NORMAL (TFT_MAD_MV | TFT_MAD_BGR)
+#endif
+#ifndef ILI9341_ROTATION_LANDSCAPE_INVERTED
+#define ILI9341_ROTATION_LANDSCAPE_INVERTED (TFT_MAD_MX | TFT_MAD_MY | TFT_MAD_MV | TFT_MAD_BGR)
+#endif
+
+#ifndef CYD_TOUCH_ROTATION
+  #ifdef TFT_ILI9341_ROTATION
+    #define CYD_TOUCH_ROTATION TFT_ILI9341_ROTATION
+  #else
+    #define CYD_TOUCH_ROTATION ILI9341_ROTATION_LANDSCAPE_NORMAL
+  #endif
+#endif
 
 static const char *TAG = "plate_touch";
 
@@ -58,6 +80,39 @@ static uint16_t plate_span_map(uint16_t v, uint16_t in_lo, uint16_t in_hi, uint1
   return (uint16_t)((vv - lo) * (uint32_t)out_max / (hi - lo));
 }
 
+static void plate_apply_rotation(int *screen_x, int *screen_y)
+{
+  int x = *screen_x;
+  int y = *screen_y;
+  int width = (int)s_screen_w - 1;
+  int height = (int)s_screen_h - 1;
+  const int rotation = CYD_TOUCH_ROTATION;
+  const bool swap_xy = (rotation & TFT_MAD_MV) != 0;
+  const bool mirror_x = (rotation & TFT_MAD_MX) != 0;
+  const bool mirror_y = false;
+
+  if (swap_xy)
+  {
+    const int tmp = x;
+    x = y;
+    y = tmp;
+    const int tmp_dim = width;
+    width = height;
+    height = tmp_dim;
+  }
+  if (mirror_x)
+  {
+    x = width - x;
+  }
+  if (mirror_y)
+  {
+    y = height - y;
+  }
+
+  *screen_x = x;
+  *screen_y = y;
+}
+
 static void plate_map_to_screen(uint16_t plate_x, uint16_t plate_y, int *screen_x, int *screen_y)
 {
   const uint16_t out_w = s_screen_w - 1;
@@ -76,6 +131,23 @@ static void plate_map_to_screen(uint16_t plate_x, uint16_t plate_y, int *screen_
     sy = (int)plate_span_map(plate_x, 0, TOUCH_ADC_MAX, out_h);
   }
 
+  if (sx < 0)
+  {
+    sx = 0;
+  }
+  if (sy < 0)
+  {
+    sy = 0;
+  }
+  if (sx >= (int)s_screen_w)
+  {
+    sx = (int)s_screen_w - 1;
+  }
+  if (sy >= (int)s_screen_h)
+  {
+    sy = (int)s_screen_h - 1;
+  }
+  plate_apply_rotation(&sx, &sy);
   if (sx < 0)
   {
     sx = 0;
