@@ -32,6 +32,9 @@
 #include "Input/Nunchuck.h"
 #include "Input/AdafruitSeeSaw.h"
 #include "Input/TDeckKeyboard.h"
+#ifdef CYD_BLUETOOTH_KEYBOARD
+#include "Input/BluetoothKeyboard.h"
+#endif
 #include "TFT/TFTDisplay.h"
 #include "TFT/ST7789.h"
 #include "TFT/ILI9341.h"
@@ -136,6 +139,7 @@ void setup(void)
   GameLoader::reserveTapeBuffer(CYD_TAPE_BUFFER_SIZE);
 #endif
   HDMIDisplay *hdmiDisplay = nullptr; // new HDMIDisplay(GPIO_NUM_7);
+  EmulatorScreen *emulatorScreen = nullptr;
   // navigation stack
   NavigationStack *navigationStack = new NavigationStack(tft, hdmiDisplay);
   // Audio output
@@ -194,6 +198,27 @@ void setup(void)
                                                 { navigationStack->pressKey(key); });
   tDeckKeyboard->start();
 #endif
+#ifdef CYD_BLUETOOTH_KEYBOARD
+  BluetoothKeyboard *bluetoothKeyboard = new BluetoothKeyboard(
+      [&](SpecKeys key, bool down) { navigationStack->updateKey(key, down); },
+      [&](SpecKeys key) {
+        if (key == SPECKEY_MENU)
+        {
+          const bool rightHanded = !settings->isCydRightHanded();
+          settings->setCydRightHanded(rightHanded);
+#ifdef CYD_TOUCH_KEYBOARD
+          if (emulatorScreen != nullptr)
+          {
+            emulatorScreen->setCydHandedness(rightHanded);
+          }
+#endif
+          Serial.printf("Toggled Cyd handedness to %s\n", rightHanded ? "right" : "left");
+          return;
+        }
+        navigationStack->pressKey(key);
+      });
+  bluetoothKeyboard->start();
+#endif
   if (audioOutput) {
     audioOutput->start(15625);
   }
@@ -206,7 +231,7 @@ void setup(void)
   CydCalibration::runIfNeeded(*tft, *settings);
   cydKeyboardThemeInit(files);
 #endif
-  EmulatorScreen *emulatorScreen = new EmulatorScreen(*tft, hdmiDisplay, audioOutput, files);
+  emulatorScreen = new EmulatorScreen(*tft, hdmiDisplay, audioOutput, files);
 #ifdef CYD_TOUCH_KEYBOARD
   const bool cydRightHanded = settings->isCydRightHanded();
   emulatorScreen->setCydHandedness(cydRightHanded);
