@@ -23,6 +23,7 @@ void Machine::runEmulator() {
       if (elapsed > 1000)
       {
         lastTime = currentTime;
+#if !defined(CYD_EMULATOR_STATS_LOG) || CYD_EMULATOR_STATS_LOG
         const unsigned long frameCount = renderer->getFrameCount();
         const unsigned long milliMhz = (elapsed == 0) ? 0 : (cycleCount / elapsed);
         const unsigned long centiFps = (elapsed == 0) ? 0 : ((frameCount * 100000UL) / elapsed);
@@ -31,6 +32,7 @@ void Machine::runEmulator() {
                       milliMhz % 1000UL,
                       centiFps / 100UL,
                       centiFps % 100UL);
+#endif
         renderer->resetFrameCount();
         cycleCount = 0;
 #ifndef CYD_NO_EMULATOR_MENU
@@ -38,8 +40,10 @@ void Machine::runEmulator() {
           timeTravel->record(machine);
         }
 #endif
+#if !defined(CYD_EMULATOR_STATS_LOG) || CYD_EMULATOR_STATS_LOG
         Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
         Serial.printf("Free PSRAM: %d\n", ESP.getFreePsram());
+#endif
       }
       if (machine->romLoadingRoutineHit)
       {

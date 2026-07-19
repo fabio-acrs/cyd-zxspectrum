@@ -192,6 +192,7 @@ const std::array<SpecKeys, 256> &hidUsageToSpecKeys() {
 
 BluetoothKeyboard::BluetoothKeyboard(KeyEventType keyEvent, KeyPressedEventType keyPressedEvent)
     : m_keyEvent(keyEvent), m_keyPressedEvent(keyPressedEvent) {
+  m_pressedKeys.reserve(8);
 }
 
 void BluetoothKeyboard::handleDisconnected() {
@@ -492,7 +493,23 @@ void BluetoothKeyboard::handleKeyboardReport(const uint8_t *data, size_t length)
     reportKeys[index] = data[payloadOffset + index + 2];
   }
 
-  std::vector<SpecKeys> activeKeys;
+  std::array<SpecKeys, 8> activeKeys{};
+  size_t activeKeyCount = 0;
+  auto hasActiveKey = [&](SpecKeys key) {
+    for (size_t index = 0; index < activeKeyCount; ++index) {
+      if (activeKeys[index] == key) {
+        return true;
+      }
+    }
+    return false;
+  };
+  auto addActiveKey = [&](SpecKeys key) {
+    if (key == SPECKEY_NONE || hasActiveKey(key) || activeKeyCount >= activeKeys.size()) {
+      return;
+    }
+    activeKeys[activeKeyCount++] = key;
+  };
+
   bool syntheticShiftDown = false;
   bool backspaceDown = false;
   for (uint8_t usage : reportKeys) {
@@ -504,31 +521,25 @@ void BluetoothKeyboard::handleKeyboardReport(const uint8_t *data, size_t length)
     if (usage == 0x2A) {
       syntheticShiftDown = true;
       backspaceDown = true;
-      if (std::find(activeKeys.begin(), activeKeys.end(), SPECKEY_SHIFT) == activeKeys.end()) {
-        activeKeys.push_back(SPECKEY_SHIFT);
-      }
-      if (std::find(activeKeys.begin(), activeKeys.end(), SPECKEY_0) == activeKeys.end()) {
-        activeKeys.push_back(SPECKEY_0);
-      }
+      addActiveKey(SPECKEY_SHIFT);
+      addActiveKey(SPECKEY_0);
       continue;
     }
 
     const SpecKeys mappedKey = mapHidUsageToSpecKey(usage);
-    if (mappedKey != SPECKEY_NONE) {
-      activeKeys.push_back(mappedKey);
-    }
+    addActiveKey(mappedKey);
   }
 
   for (SpecKeys key : m_pressedKeys) {
-    if (std::find(activeKeys.begin(), activeKeys.end(), key) == activeKeys.end()) {
+    if (!hasActiveKey(key)) {
       emitKeyEvent(key, false);
     }
   }
 
-  for (SpecKeys key : activeKeys) {
+  for (size_t index = 0; index < activeKeyCount; ++index) {
+    const SpecKeys key = activeKeys[index];
     if (std::find(m_pressedKeys.begin(), m_pressedKeys.end(), key) == m_pressedKeys.end()) {
       emitKeyEvent(key, true);
-      m_pressedKeys.push_back(key);
     }
   }
 
@@ -547,11 +558,9 @@ void BluetoothKeyboard::handleKeyboardReport(const uint8_t *data, size_t length)
     m_backspacePressed = false;
   }
 
-  if (m_pressedKeys.size() > 0) {
-    auto newEnd = std::remove_if(m_pressedKeys.begin(), m_pressedKeys.end(), [&](SpecKeys key) {
-      return std::find(activeKeys.begin(), activeKeys.end(), key) == activeKeys.end();
-    });
-    m_pressedKeys.erase(newEnd, m_pressedKeys.end());
+  m_pressedKeys.clear();
+  for (size_t index = 0; index < activeKeyCount; ++index) {
+    m_pressedKeys.push_back(activeKeys[index]);
   }
 }
 
