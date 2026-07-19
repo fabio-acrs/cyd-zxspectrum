@@ -30,6 +30,7 @@ private:
   std::array<uint8_t, 8> m_lastReport{};
   std::vector<SpecKeys> m_pressedKeys;
   bool m_backspacePressed = false;
+  bool m_hasLastReport = false;
 
   static void onKeyboardNotify(NimBLERemoteCharacteristic *pRemoteCharacteristic,
                                uint8_t *pData,

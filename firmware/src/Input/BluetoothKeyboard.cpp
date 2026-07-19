@@ -201,6 +201,7 @@ void BluetoothKeyboard::handleDisconnected() {
   m_inputReportCharacteristic = nullptr;
   m_pressedKeys.clear();
   m_backspacePressed = false;
+  m_hasLastReport = false;
   if (m_client != nullptr && !m_client->isConnected()) {
     NimBLEDevice::deleteClient(m_client);
     m_client = nullptr;
@@ -277,12 +278,16 @@ void BluetoothKeyboard::readKeyboard() {
       } else {
         if (m_scanCycleActive) {
           m_scanCycleActive = false;
+#if defined(CYD_BLE_SCAN_LOG_ALL) && CYD_BLE_SCAN_LOG_ALL
           Serial.println("Bluetooth keyboard scan cycle complete");
+#endif
           connectToKeyboardDevice();
           scan->clearResults();
         }
         if (!m_connected) {
+#if defined(CYD_BLE_SCAN_LOG_ALL) && CYD_BLE_SCAN_LOG_ALL
           Serial.println("Bluetooth keyboard scan cycle start");
+#endif
           const bool scanStarted = scan->start(kScanTimeMs, false);
           if (!scanStarted) {
             Serial.printf("Bluetooth scan restart failed (free heap=%u)\n", (unsigned)ESP.getFreeHeap());
@@ -473,11 +478,18 @@ void BluetoothKeyboard::handleKeyboardReport(const uint8_t *data, size_t length)
     payloadOffset = length - 8;
   }
 
+  const uint8_t *payload = data + payloadOffset;
+  if (m_hasLastReport && std::equal(m_lastReport.begin(), m_lastReport.end(), payload)) {
+    return;
+  }
+  std::copy_n(payload, m_lastReport.size(), m_lastReport.begin());
+  m_hasLastReport = true;
+
 #if defined(CYD_BLE_KEYPRESS_LOG) && CYD_BLE_KEYPRESS_LOG
   Serial.printf("BLE report len=%u offset=%u\n", (unsigned)length, (unsigned)payloadOffset);
 #endif
 
-  const uint8_t modifier = data[payloadOffset + 0];
+  const uint8_t modifier = payload[0];
   const bool shiftDown = (modifier & 0x02) != 0;
   const bool altDown = (modifier & 0x04) != 0;
 
@@ -490,7 +502,7 @@ void BluetoothKeyboard::handleKeyboardReport(const uint8_t *data, size_t length)
 
   std::array<uint8_t, 6> reportKeys{};
   for (size_t index = 0; index < 6; ++index) {
-    reportKeys[index] = data[payloadOffset + index + 2];
+    reportKeys[index] = payload[index + 2];
   }
 
   std::array<SpecKeys, 8> activeKeys{};
