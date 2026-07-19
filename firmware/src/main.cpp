@@ -59,6 +59,7 @@
 #include "SerialInterface/Messages/DeleteFile.h"
 #include "SerialInterface/Messages/MakeDirectory.h"
 #include "SerialInterface/Messages/RenameFile.h"
+#include "Screens/fonts/GillSans_15_vlw.h"
 #ifdef CYD_TAPE_BUFFER_SIZE
 #include "Screens/EmulatorScreen/GameLoader.h"
 #endif
@@ -134,6 +135,15 @@ void setup(void)
   #ifdef TFT_ILI9341
   Display *tft = new ILI9341(TFT_CS, TFT_DC, TFT_RST, TFT_BL, TFT_WIDTH, TFT_HEIGHT);
   #endif
+  #ifdef CYD_BOOT_STATUS
+    const uint16_t bootBg = Display::color565(0, 60, 120);
+    tft->fillScreen(bootBg);
+    tft->loadFont(GillSans_15_vlw);
+    tft->setTextColor(TFT_WHITE, bootBg);
+    tft->drawCenterString("BLE minimal boot", tft->height() / 2 - 20);
+    tft->drawCenterString("Display ready", tft->height() / 2 + 10);
+    vTaskDelay(1500 / portTICK_PERIOD_MS);
+  #endif
 #ifdef CYD_TAPE_BUFFER_SIZE
   // After TFT DMA buffer (32 KiB); before emulator/serial fragment the heap.
   GameLoader::reserveTapeBuffer(CYD_TAPE_BUFFER_SIZE);
@@ -199,9 +209,26 @@ void setup(void)
   tDeckKeyboard->start();
 #endif
 #ifdef CYD_BLUETOOTH_KEYBOARD
+  bool bluetoothInputEnabled = false;
   BluetoothKeyboard *bluetoothKeyboard = new BluetoothKeyboard(
-      [&](SpecKeys key, bool down) { navigationStack->updateKey(key, down); },
+      [&](SpecKeys key, bool down) {
+        if (!bluetoothInputEnabled)
+        {
+          return;
+        }
+#if defined(CYD_BLE_KEYPRESS_LOG) && CYD_BLE_KEYPRESS_LOG
+        Serial.printf("BLE key event: key=%d state=%s\n", (int)key, down ? "down" : "up");
+#endif
+        navigationStack->updateKey(key, down);
+      },
       [&](SpecKeys key) {
+        if (!bluetoothInputEnabled)
+        {
+          return;
+        }
+#if defined(CYD_BLE_KEYPRESS_LOG) && CYD_BLE_KEYPRESS_LOG
+        Serial.printf("BLE key pressed: key=%d\n", (int)key);
+#endif
         if (key == SPECKEY_MENU)
         {
           const bool rightHanded = !settings->isCydRightHanded();
@@ -217,7 +244,29 @@ void setup(void)
         }
         navigationStack->pressKey(key);
       });
-  bluetoothKeyboard->start();
+#endif
+#ifdef CYD_BLE_SCAN_ONLY
+#ifdef CYD_BLUETOOTH_KEYBOARD
+  tft->fillScreen(TFT_BLACK);
+  tft->loadFont(GillSans_15_vlw);
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  tft->drawCenterString("BLE scan only", tft->height() / 2 - 20);
+  tft->drawCenterString("Waiting for adverts", tft->height() / 2 + 10);
+  while (true)
+  {
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+#else
+  tft->fillScreen(TFT_RED);
+  tft->loadFont(GillSans_15_vlw);
+  tft->setTextColor(TFT_WHITE, TFT_RED);
+  tft->drawCenterString("BLE scan only", tft->height() / 2 - 20);
+  tft->drawCenterString("Bluetooth disabled", tft->height() / 2 + 10);
+  while (true)
+  {
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+#endif
 #endif
   if (audioOutput) {
     audioOutput->start(15625);
@@ -227,6 +276,73 @@ void setup(void)
   {
     Serial.println("Failed to create /snapshots directory");
   }
+#ifdef CYD_BLUETOOTH_KEYBOARD
+  bluetoothKeyboard->start();
+#ifdef CYD_BLE_CONNECT_BEFORE_EMULATOR
+  const uint32_t bluetoothConnectTimeoutMs = CYD_BLE_CONNECT_TIMEOUT_MS;
+  const uint32_t bluetoothStableConnectionMs = CYD_BLE_STABLE_CONNECTION_MS;
+  auto waitForBluetoothReady = [&](const char *stageLabel) {
+    const uint32_t bluetoothWaitStartMs = millis();
+    uint32_t bluetoothReadySinceMs = 0;
+    Serial.printf("Waiting for Bluetooth HID ready state %s (timeout=%u ms, stable=%u ms)\n",
+                  stageLabel,
+                  (unsigned)bluetoothConnectTimeoutMs,
+                  (unsigned)bluetoothStableConnectionMs);
+
+    while (true)
+    {
+      const uint32_t nowMs = millis();
+      const bool ready = bluetoothKeyboard->isReady();
+      if (ready)
+      {
+        if (bluetoothReadySinceMs == 0)
+        {
+          bluetoothReadySinceMs = nowMs;
+          Serial.println("Bluetooth HID subscribed, verifying link stability...");
+        }
+        if ((nowMs - bluetoothReadySinceMs) >= bluetoothStableConnectionMs)
+        {
+          Serial.println("Bluetooth HID connection stable. Continuing startup.");
+          return true;
+        }
+      }
+      else
+      {
+        bluetoothReadySinceMs = 0;
+      }
+
+      if (bluetoothConnectTimeoutMs > 0 && (nowMs - bluetoothWaitStartMs) >= bluetoothConnectTimeoutMs)
+      {
+        Serial.println("Bluetooth keyboard wait timed out; continuing startup.");
+        return false;
+      }
+
+      vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
+  };
+
+  waitForBluetoothReady("before emulator init");
+#else
+  const uint32_t bluetoothBootWaitMs = 30000;
+  const uint32_t bluetoothBootStartMs = millis();
+  while (!bluetoothKeyboard->isConnected() && !bluetoothKeyboard->hasSeenCandidate() && (millis() - bluetoothBootStartMs) < bluetoothBootWaitMs)
+  {
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+  }
+  if (bluetoothKeyboard->isConnected())
+  {
+    Serial.println("Bluetooth keyboard connected during boot window");
+  }
+  else if (bluetoothKeyboard->hasSeenCandidate())
+  {
+    Serial.println("Bluetooth keyboard candidate seen during boot window");
+  }
+  else
+  {
+    Serial.println("No Bluetooth keyboard candidate seen during boot window; continuing startup");
+  }
+#endif
+#endif
 #ifdef CYD_TOUCH_KEYBOARD
   CydCalibration::runIfNeeded(*tft, *settings);
   cydKeyboardThemeInit(files);
@@ -246,10 +362,32 @@ void setup(void)
 #else
   navigationStack->push(emulatorScreen);
 #endif
+#ifdef CYD_BLUETOOTH_KEYBOARD
+#ifdef CYD_BLE_CONNECT_BEFORE_EMULATOR
+  if (!bluetoothKeyboard->isReady())
+  {
+    Serial.println("Bluetooth HID link changed during emulator init; waiting for recovery...");
+  }
+  waitForBluetoothReady("after emulator init");
+#endif
+#endif
   emulatorScreen->run("", models_enum::SPECMDL_48K);
+
+#ifdef CYD_BLUETOOTH_KEYBOARD
+  bluetoothInputEnabled = true;
+#endif
+
   // start off the keyboard and feed keys into the active scene
-  // SerialKeyboard *keyboard = new SerialKeyboard([&](SpecKeys key, bool down)
-  //                                               { navigationStack->updateKey(key, down); if (down) { navigationStack->pressKey(key); } });
+#ifdef CYD_SERIAL_KEYBOARD
+  SerialKeyboard *keyboard = new SerialKeyboard([&](SpecKeys key, bool down)
+                                                {
+                                                  navigationStack->updateKey(key, down);
+                                                  if (down)
+                                                  {
+                                                    navigationStack->pressKey(key);
+                                                  }
+                                                });
+#endif
 
 // start up the nunchuk controller and feed events into the active screen
 #ifdef NUNCHUK_CLOCK
@@ -267,6 +405,7 @@ void setup(void)
   //                                   { navigationStack->pressKey(key); });
   // seeSaw->begin(SEESAW_DATA, SEESAW_CLOCK);
 #endif
+#ifndef CYD_SERIAL_KEYBOARD
   SerialTransport *serialTransport = new SerialTransport();
   PacketHandler *packetHandler = new PacketHandler(*serialTransport);
   packetHandler->registerMessageHandler(new GetVersionMessageReciever(spiffsFiles, sdFiles, packetHandler), MessageId::GetVersionRequest);
@@ -292,16 +431,40 @@ void setup(void)
     nullptr,
     1
   );
+#endif
 
 #ifndef CYD_NO_EMULATOR_MENU
   pinMode(0, INPUT_PULLUP);
   bool bootButtonWasPressed = false;
 #endif
+#ifdef CYD_BLUETOOTH_KEYBOARD
+  bool waitingForBluetoothKeyboard = true;
+#endif
   while (true)
   {
     vTaskDelay(20 / portTICK_PERIOD_MS);
-#ifdef CYD_TOUCH_KEYBOARD
+#ifdef CYD_BLUETOOTH_KEYBOARD
+    if (bluetoothKeyboard != nullptr && !bluetoothKeyboard->isReady())
+    {
+      if (!waitingForBluetoothKeyboard)
+      {
+        waitingForBluetoothKeyboard = true;
+        Serial.println("Bluetooth keyboard not ready - continuing emulation and waiting for reconnect");
+      }
+    }
+    else
+    {
+      if (waitingForBluetoothKeyboard)
+      {
+        waitingForBluetoothKeyboard = false;
+        Serial.println("Bluetooth keyboard connected - keyboard input active");
+      }
+    }
     emulatorScreen->tickEmulation();
+#else
+    emulatorScreen->tickEmulation();
+#endif
+#ifdef CYD_TOUCH_KEYBOARD
     emulatorScreen->openMenuIfRequested();
     Screen *topScreen = navigationStack->getTop();
     if (topScreen != nullptr && topScreen->usesCydTouch())

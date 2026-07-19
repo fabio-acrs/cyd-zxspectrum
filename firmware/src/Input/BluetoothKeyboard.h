@@ -2,6 +2,7 @@
 
 #include <array>
 #include <functional>
+#include <string>
 #include <vector>
 #include "../Emulator/keyboard_defs.h"
 
@@ -19,11 +20,16 @@ private:
   bool m_started = false;
   bool m_connected = false;
   bool m_scanning = false;
+  bool m_scanCycleActive = false;
+  bool m_hasPendingCandidate = false;
+  bool m_seenCandidate = false;
+  std::string m_pendingCandidateAddress;
   bool m_ready = false;
   NimBLEClient *m_client = nullptr;
   NimBLERemoteCharacteristic *m_inputReportCharacteristic = nullptr;
   std::array<uint8_t, 8> m_lastReport{};
   std::vector<SpecKeys> m_pressedKeys;
+  bool m_backspacePressed = false;
 
   static void onKeyboardNotify(NimBLERemoteCharacteristic *pRemoteCharacteristic,
                                uint8_t *pData,
@@ -37,8 +43,13 @@ private:
   bool discoverKeyboardServices();
 
 public:
+  void queueCandidateAddress(const std::string &address);
   bool connectToKeyboardDeviceForScanCallback();
   BluetoothKeyboard(KeyEventType keyEvent, KeyPressedEventType keyPressedEvent);
+  bool isConnected() const { return m_connected; }
+  bool isReady() const { return m_ready; }
+  bool hasSeenCandidate() const { return m_seenCandidate; }
+  void handleDisconnected();
   bool start();
   static void readKeyboardTask(void *pvParameters);
   void readKeyboard();

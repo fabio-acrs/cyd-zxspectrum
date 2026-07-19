@@ -1,4 +1,6 @@
 #pragma once
+#ifndef CYD_RENDERER_H
+#define CYD_RENDERER_H
 #include <freertos/FreeRTOS.h>
 #include <string.h>
 #include "../../TFT/Display.h"
@@ -21,12 +23,17 @@ private:
     uint8_t *currentScreenBuffer = nullptr;
     // what's currently on the TFT screen
     uint8_t *screenBuffer = nullptr;
+    bool m_buffersReady = false;
+    bool m_lowMemoryRendering = false;
+    bool m_missingBufferLogged = false;
+    const uint8_t *m_liveScreenSource = nullptr;
     // the current borders of the spectrum screen
     uint8_t currentBorderColors[312] = {0};
     // the current borders on the TFT screen
     uint8_t drawnBorderColors[312] = {0};
     // control the drawing of the screen
     SemaphoreHandle_t m_displaySemaphore;
+    TaskHandle_t m_displayTask = nullptr;
     // are we ready to draw?
     bool drawReady = true;
     // is this the first draw?
@@ -86,22 +93,62 @@ public:
       {
         Serial.println("Failed to allocate screen buffer");
       }
-      memset(screenBuffer, 0, 6912);
+      else
+      {
+        memset(screenBuffer, 0, 6912);
+      }
       currentScreenBuffer = (uint8_t *)malloc(6912);
       if (currentScreenBuffer == NULL)
       {
         Serial.println("Failed to allocate current screen buffer");
       }
-      memset(currentScreenBuffer, 0, 6912);
+      else
+      {
+        memset(currentScreenBuffer, 0, 6912);
+      }
+      if (pixelBuffer == NULL)
+      {
+        Serial.println("Failed to allocate pixel buffer");
+      }
+      m_buffersReady = pixelBuffer != NULL && screenBuffer != NULL && currentScreenBuffer != NULL;
+      m_lowMemoryRendering = pixelBuffer != NULL && (screenBuffer == NULL || currentScreenBuffer == NULL);
+      if (!m_buffersReady && !m_lowMemoryRendering)
+      {
+        Serial.println("Renderer buffers unavailable; drawing disabled until memory is available");
+      }
+      else if (m_lowMemoryRendering)
+      {
+        Serial.println("Renderer using low-memory mode (full redraw, no frame cache)");
+        if (screenBuffer != NULL)
+        {
+          free(screenBuffer);
+          screenBuffer = nullptr;
+        }
+        if (currentScreenBuffer != NULL)
+        {
+          free(currentScreenBuffer);
+          currentScreenBuffer = nullptr;
+        }
+      }
       m_displaySemaphore = xSemaphoreCreateBinary();
     }
     void start() {
       isRunning = true;
-#ifdef CYD_TOUCH_KEYBOARD
-      xTaskCreatePinnedToCore(displayTask, "displayTask", 4096, this, 1, NULL, 1);
-#else
-      xTaskCreatePinnedToCore(displayTask, "displayTask", 8192, this, 1, NULL, 1);
-#endif
+      if (m_displayTask != nullptr)
+      {
+        return;
+      }
+      static const uint32_t kStacks[] = {8192, 6144, 4096, 3072};
+      for (uint32_t stack : kStacks)
+      {
+        BaseType_t created = xTaskCreatePinnedToCore(displayTask, "displayTask", stack, this, 1, &m_displayTask, 1);
+        if (created == pdPASS)
+        {
+          Serial.printf("Display task created (stack %u)\n", (unsigned)stack);
+          return;
+        }
+      }
+      Serial.println("Display task unavailable - using synchronous redraw fallback");
     }
     ~Renderer() {
       free(pixelBuffer);
@@ -109,8 +156,25 @@ public:
       free(currentScreenBuffer);
     }
     void triggerDraw(const uint8_t *currentScreen, const uint8_t *borderColors) {
-      memcpy(currentScreenBuffer, currentScreen, 6912);
+      if (!m_buffersReady && !m_lowMemoryRendering)
+      {
+        return;
+      }
+      if (m_buffersReady)
+      {
+        memcpy(currentScreenBuffer, currentScreen, 6912);
+      }
+      else
+      {
+        m_liveScreenSource = currentScreen;
+      }
       memcpy(currentBorderColors, borderColors, 312);
+      if (m_displayTask == nullptr)
+      {
+        drawScreen();
+        drawReady = true;
+        return;
+      }
       if (!isRunning || !drawReady) {
         return;
       }
@@ -173,8 +237,19 @@ public:
     }
 #endif
     void forceRedraw(const uint8_t *currentScreen = nullptr, const uint8_t *borderColors = nullptr) {
+      if (!m_buffersReady && !m_lowMemoryRendering)
+      {
+        return;
+      }
       if (currentScreen != nullptr) {
-        memcpy(currentScreenBuffer, currentScreen, 6912);
+        if (m_buffersReady)
+        {
+          memcpy(currentScreenBuffer, currentScreen, 6912);
+        }
+        else
+        {
+          m_liveScreenSource = currentScreen;
+        }
       }
       if (borderColors != nullptr) {
         memcpy(currentBorderColors, borderColors, 312);
@@ -190,8 +265,19 @@ public:
     }
     // Paint on the calling thread. Caller must pause() the display task first.
     void drawFrameSync(const uint8_t *currentScreen = nullptr, const uint8_t *borderColors = nullptr) {
+      if (!m_buffersReady && !m_lowMemoryRendering)
+      {
+        return;
+      }
       if (currentScreen != nullptr) {
-        memcpy(currentScreenBuffer, currentScreen, 6912);
+        if (m_buffersReady)
+        {
+          memcpy(currentScreenBuffer, currentScreen, 6912);
+        }
+        else
+        {
+          m_liveScreenSource = currentScreen;
+        }
       }
       if (borderColors != nullptr) {
         memcpy(currentBorderColors, borderColors, 312);
@@ -209,3 +295,5 @@ public:
     bool isShowingTimeTravel = false;
 #endif
 };
+
+#endif

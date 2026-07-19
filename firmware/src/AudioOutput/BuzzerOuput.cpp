@@ -46,6 +46,11 @@ void BuzzerOutput::resume()
 
 void BuzzerOutput::write(const uint8_t *samples, int count)
 {
+  if (samples == nullptr || count <= 0)
+  {
+    return;
+  }
+
   while (true)
   {
     if(xSemaphoreTake(mBufferSemaphore, portMAX_DELAY)) {
@@ -54,7 +59,14 @@ void BuzzerOutput::write(const uint8_t *samples, int count)
       {
         //Serial.println("Filling second buffer");
         // make sure there's enough room for the samples
-        mSecondBuffer = (uint8_t *)realloc(mSecondBuffer, count);
+        uint8_t *newBuffer = (uint8_t *)realloc(mSecondBuffer, count);
+        if (newBuffer == nullptr)
+        {
+          // Drop this audio chunk if memory is exhausted instead of crashing.
+          xSemaphoreGive(mBufferSemaphore);
+          return;
+        }
+        mSecondBuffer = newBuffer;
         // copy them into the second buffer
         memcpy(mSecondBuffer, samples, count);
         // second buffer is now full of samples

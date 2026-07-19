@@ -16,6 +16,7 @@
 #include "FlashLittleFS.h"
 #include <sys/stat.h>
 #include <unistd.h>
+#include <new>
 
 class StringUtils
 {
@@ -433,21 +434,28 @@ public:
       std::cout << "Extension: " << extension << std::endl;
     }
 
-    for (DirectoryIterator it(full_path, prefix, extensions, includeDirectories); it != DirectoryIterator(); ++it)
+    try
     {
-      if (it->d_type == DT_REG) {
-        // do we need a slash at the end of the path?
-        if (full_path[full_path.length() - 1] != '/')
-        {
-          full_path += "/";
+      for (DirectoryIterator it(full_path, prefix, extensions, includeDirectories); it != DirectoryIterator(); ++it)
+      {
+        if (it->d_type == DT_REG) {
+          // do we need a slash at the end of the path?
+          if (full_path[full_path.length() - 1] != '/')
+          {
+            full_path += "/";
+          }
+          std::string fullFilePath = full_path + it->d_name;
         }
-        std::string fullFilePath = full_path + it->d_name;
+        files.push_back(FileInfoPtr(new FileInfo(StringUtils::upcase(it->d_name), it->d_name, full_path + it->d_name, it->d_type == DT_DIR)));
       }
-      files.push_back(FileInfoPtr(new FileInfo(StringUtils::upcase(it->d_name), it->d_name, full_path + it->d_name, it->d_type == DT_DIR)));
+      // sort the files - is this needed? Maybe they are already alphabetically sorted
+      std::sort(files.begin(), files.end(), [](FileInfoPtr a, FileInfoPtr b)
+                { return a->getTitle() < b->getTitle(); });
     }
-    // sort the files - is this needed? Maybe they are already alphabetically sorted
-    std::sort(files.begin(), files.end(), [](FileInfoPtr a, FileInfoPtr b)
-              { return a->getTitle() < b->getTitle(); });
+    catch (const std::bad_alloc &)
+    {
+      std::cout << "Low-memory while listing files in " << full_path << ", returning partial results" << std::endl;
+    }
     return files;
   }
 };
@@ -582,34 +590,38 @@ public:
     FileInfoVector combined;
     std::map<std::string, FileInfoPtr> uniqueFiles;
 
-    // Get files from both sources
-    if (flashFiles->isAvailable()) {
-      auto flashFiles = this->flashFiles->getFileStartingWithPrefix(folder, prefix, extensions, includeDirectories);
-      for (const auto& file : flashFiles) {
-        uniqueFiles[file->getTitle()] = file;
-      }
-    }
-
-    if (sdFiles->isAvailable()) {
-      auto sdFiles = this->sdFiles->getFileStartingWithPrefix(folder, prefix, extensions, includeDirectories);
-      for (const auto& file : sdFiles) {
-        // Only add if not already present from flash
-        if (uniqueFiles.find(file->getTitle()) == uniqueFiles.end()) {
+    try {
+      // Get files from both sources
+      if (flashFiles->isAvailable()) {
+        auto flashFiles = this->flashFiles->getFileStartingWithPrefix(folder, prefix, extensions, includeDirectories);
+        for (const auto& file : flashFiles) {
           uniqueFiles[file->getTitle()] = file;
         }
       }
-    }
 
-    // Convert map back to vector
-    for (const auto& pair : uniqueFiles) {
-      combined.push_back(pair.second);
-    }
+      if (sdFiles->isAvailable()) {
+        auto sdFiles = this->sdFiles->getFileStartingWithPrefix(folder, prefix, extensions, includeDirectories);
+        for (const auto& file : sdFiles) {
+          // Only add if not already present from flash
+          if (uniqueFiles.find(file->getTitle()) == uniqueFiles.end()) {
+            uniqueFiles[file->getTitle()] = file;
+          }
+        }
+      }
 
-    // Sort alphabetically
-    std::sort(combined.begin(), combined.end(),
-      [](const FileInfoPtr& a, const FileInfoPtr& b) {
-        return a->getTitle() < b->getTitle();
-      });
+      // Convert map back to vector
+      for (const auto& pair : uniqueFiles) {
+        combined.push_back(pair.second);
+      }
+
+      // Sort alphabetically
+      std::sort(combined.begin(), combined.end(),
+        [](const FileInfoPtr& a, const FileInfoPtr& b) {
+          return a->getTitle() < b->getTitle();
+        });
+    } catch (const std::bad_alloc &) {
+      std::cout << "Low-memory while combining file list for " << folder << ", returning partial results" << std::endl;
+    }
 
     return combined;
   }

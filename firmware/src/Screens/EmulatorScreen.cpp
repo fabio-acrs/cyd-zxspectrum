@@ -90,6 +90,23 @@ bool EmulatorScreen::isMachineReady() const
          speccy->mem.rom[0]->ok();
 }
 
+void EmulatorScreen::tickEmulation()
+{
+  if (m_emulatorStarted && machine != nullptr)
+  {
+    machine->tickMainLoop();
+  }
+}
+
+void EmulatorScreen::forceCurrentFrameRedraw()
+{
+  ZXSpectrum *currentMachine = machine != nullptr ? machine->getMachine() : nullptr;
+  if (renderer != nullptr && currentMachine != nullptr)
+  {
+    renderer->forceRedraw(currentMachine->mem.currentScreen->data, currentMachine->borderColors);
+  }
+}
+
 void EmulatorScreen::run(std::string filename, models_enum model)
 {
   if (!isMachineReady())
@@ -101,10 +118,36 @@ void EmulatorScreen::run(std::string filename, models_enum model)
     m_tft.drawCenterString("for 48K emulator", m_tft.height() / 2 + 10);
     return;
   }
+#ifdef CYD_BOOT_STATUS
+  const uint16_t bootBg = Display::color565(0, 120, 70);
+  auto showBootStage = [&](uint16_t color, const char *line2) {
+    m_tft.fillScreen(color);
+    m_tft.loadFont(GillSans_15_vlw);
+    m_tft.setTextColor(TFT_BLACK, color);
+    m_tft.drawCenterString("BLE minimal boot", m_tft.height() / 2 - 20);
+    m_tft.drawCenterString(line2, m_tft.height() / 2 + 10);
+    vTaskDelay(1200 / portTICK_PERIOD_MS);
+  };
+  m_tft.fillScreen(bootBg);
+  m_tft.loadFont(GillSans_15_vlw);
+  m_tft.setTextColor(TFT_BLACK, bootBg);
+  m_tft.drawCenterString("BLE minimal boot", m_tft.height() / 2 - 20);
+  m_tft.drawCenterString("Starting emulator", m_tft.height() / 2 + 10);
+  vTaskDelay(1500 / portTICK_PERIOD_MS);
+#endif
   m_tft.fillScreen(TFT_BLACK);
   auto bl = BusyLight();
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(160, 80, 0), "Before machine setup");
+#endif
   machine->setup(model);
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(180, 140, 0), "Machine setup done");
+#endif
   renderer->start();
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(0, 140, 90), "Renderer started");
+#endif
   Serial.println("Machine setup complete");
   // Run a few frames synchronously and paint once so we are not stuck on the
   // ILI9341 boot fill while the display task waits for the first triggerDraw.
@@ -113,6 +156,9 @@ void EmulatorScreen::run(std::string filename, models_enum model)
   {
     speccy->runForFrame(nullptr, nullptr);
   }
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(80, 0, 140), "Boot frames done");
+#endif
   uint32_t screenSum = 0;
   for (int i = 0; i < 6912; i++)
   {
@@ -129,6 +175,9 @@ void EmulatorScreen::run(std::string filename, models_enum model)
   renderer->drawFrameSync(speccy->mem.currentScreen->data, speccy->borderColors);
 #endif
   renderer->resume();
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(0, 140, 140), "First draw done");
+#endif
   Serial.println("First screen draw complete");
 #ifdef CYD_TOUCH_KEYBOARD
   if (filename.empty())
@@ -176,6 +225,10 @@ void EmulatorScreen::run(std::string filename, models_enum model)
     }
   }
   machine->start(audioFile);
+#ifdef CYD_BOOT_STATUS
+  showBootStage(Display::color565(160, 160, 160), "Machine start done");
+  forceCurrentFrameRedraw();
+#endif
   m_emulatorStarted = true;
 }
 
@@ -481,14 +534,6 @@ void EmulatorScreen::pollCydTouch()
   if (m_cydTouchKeyboard != nullptr)
   {
     m_cydTouchKeyboard->pollTouchInput();
-  }
-}
-
-void EmulatorScreen::tickEmulation()
-{
-  if (m_emulatorStarted && machine != nullptr)
-  {
-    machine->tickMainLoop();
   }
 }
 

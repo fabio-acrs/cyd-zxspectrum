@@ -1,5 +1,6 @@
 import serial
 import serial.tools.list_ports
+import argparse
 from pynput import keyboard
 
 # Mapping from pynput keys to SpecKeys enumeration values
@@ -72,6 +73,12 @@ def select_serial_port():
         print("Invalid selection.")
         return select_serial_port()
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Send host keyboard events to the CYD over raw serial.")
+    parser.add_argument("--port", help="Serial device path, e.g. /dev/ttyUSB0")
+    parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate")
+    return parser.parse_args()
+
 def on_press(key):
     key_value = get_key_value(key)
     if key_value is not None:
@@ -87,9 +94,10 @@ def on_release(key):
         ser.write(msg.encode())
 
 if __name__ == "__main__":
-    port = select_serial_port()
+    args = parse_args()
+    port = args.port or select_serial_port()
     if port:
-        ser = serial.Serial(port, 115200, timeout=1)
+        ser = serial.Serial(port, args.baud, timeout=1)
         print(f"Connected to {port}. Listening for keyboard events...")
 
         # Set up the listener for keyboard events

@@ -112,6 +112,33 @@ The main environment is `cheap-yellow-display`. Typical commands from the reposi
 
 In VS Code, opening the repository root with the PlatformIO IDE extension exposes the `cheap-yellow-display` environment directly in the PlatformIO sidebar, so you can build, upload, erase, and monitor the firmware from there without switching to a nested project folder.
 
+## Bluetooth keyboard profile (low-memory CYD)
+
+The repository now includes a BLE HID keyboard profile for memory-constrained boards:
+
+- Environment: `cheap-yellow-display-bluetooth-min`
+- Goal: keep Bluetooth keyboard support and emulator rendering stable with low free heap
+
+Build and flash:
+
+```sh
+.pio-venv/bin/pio run -e cheap-yellow-display-bluetooth-min
+.pio-venv/bin/pio run -e cheap-yellow-display-bluetooth-min -t upload
+```
+
+Runtime behavior in this profile:
+
+- Startup waits for BLE HID keyboard readiness before and after emulator initialization.
+- Emulator execution continues even if keyboard link quality drops; BLE reconnection happens in the background.
+- HID parsing supports report variants with optional report-ID offset.
+- Input subscription covers all notify-capable HID input report characteristics.
+- Backspace is translated to Spectrum delete behavior (Caps Shift + 0 / DEL press event path).
+
+Optional keyboard filtering flags in `platformio.ini`:
+
+- `CYD_BLE_KEYBOARD_NAME` to target a specific advertised keyboard name
+- `CYD_BLE_KEYBOARD_MAC` to target a specific keyboard address
+
 ## Install firmware in your browser
 
 **[Install CYD ZX Spectrum firmware](https://kf106.github.io/cyd-zxspectrum/)**

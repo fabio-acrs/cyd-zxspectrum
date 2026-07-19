@@ -68,6 +68,16 @@ void Renderer::waitForIdle()
 
 void Renderer::drawScreen()
 {
+  if (!m_buffersReady && !m_lowMemoryRendering)
+  {
+    if (!m_missingBufferLogged)
+    {
+      Serial.println("Renderer draw skipped: frame buffers are not available");
+      m_missingBufferLogged = true;
+    }
+    drawReady = true;
+    return;
+  }
   m_drawing = true;
   m_tft.startWrite();
   if (m_HDMIDisplay) {
@@ -243,10 +253,17 @@ void Renderer::drawSpectrumScreen() {
   drawBorder(borderHeightSkip, screenHeight - borderHeight - bottomBorderSkip, borderOffset, borderWidth, 0, screenWidth, true);
 #endif
   // do the pixels
-  uint8_t *attrBase = currentScreenBuffer + 0x1800;
-  uint8_t *pixelBase = currentScreenBuffer;
-  uint8_t *attrBaseCopy = screenBuffer + 0x1800;
-  uint8_t *pixelBaseCopy = screenBuffer;
+  const uint8_t *screenSource = m_buffersReady ? currentScreenBuffer : m_liveScreenSource;
+  if (screenSource == nullptr || pixelBuffer == nullptr)
+  {
+    drawReady = true;
+    return;
+  }
+
+  const uint8_t *attrBase = screenSource + 0x1800;
+  const uint8_t *pixelBase = screenSource;
+  uint8_t *attrBaseCopy = m_buffersReady ? (screenBuffer + 0x1800) : nullptr;
+  uint8_t *pixelBaseCopy = m_buffersReady ? screenBuffer : nullptr;
   for (int attrY = 0; attrY < 192 / 8; attrY++)
   {
     bool dirty = false;
@@ -266,7 +283,7 @@ void Renderer::drawSpectrumScreen() {
         // update the attribute with the new colors - this makes our dirty check work
         attr = (attr & B11000000) | (inkColor & B00000111) | ((paperColor << 3) & B00111000);
       }
-      if (attr != *(attrBaseCopy + 32 * attrY + attrX))
+      if (m_buffersReady && attr != *(attrBaseCopy + 32 * attrY + attrX))
       {
         dirty = true;
         *(attrBaseCopy + 32 * attrY + attrX) = attr;
@@ -290,12 +307,15 @@ void Renderer::drawSpectrumScreen() {
         int screenY = attrY * 8;
         int scan = (screenY & B11000000) + (y << 3) + ((screenY & B111000) >> 3);
         uint8_t row = *(pixelBase + 32 * scan + attrX);
-        uint8_t rowCopy = *(pixelBaseCopy + 32 * scan + attrX);
-        // check for changes in the pixel data
-        if (row != rowCopy)
+        if (m_buffersReady)
         {
-          dirty = true;
-          *(pixelBaseCopy + 32 * scan + attrX) = row;
+          uint8_t rowCopy = *(pixelBaseCopy + 32 * scan + attrX);
+          // check for changes in the pixel data
+          if (row != rowCopy)
+          {
+            dirty = true;
+            *(pixelBaseCopy + 32 * scan + attrX) = row;
+          }
         }
         uint16_t *pixelAddress = pixelBuffer + 256 * y + attrX * 8;
         // Since the ESP32 is a 32-bit processor with a 32-bit memory bus,
@@ -327,7 +347,7 @@ void Renderer::drawSpectrumScreen() {
         }
       }
     }
-    if (dirty || firstDraw)
+    if (dirty || firstDraw || m_lowMemoryRendering)
     {
       m_tft.setWindow(spectrumOriginX, spectrumOriginY + attrY * 8, spectrumOriginX + 255, spectrumOriginY + attrY * 8 + 7);
       m_tft.pushPixels(pixelBuffer, 256 * 8);

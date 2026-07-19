@@ -37,9 +37,11 @@ class EmulatorScreen : public Screen
     bool loadTape(std::string filename);
     Renderer *getRenderer() { return renderer; }
     Machine *getMachine() { return machine; }
+    void forceCurrentFrameRedraw();
     void loadGameFile(const char *path);
     void finishGameLoad();
     void setDeferResume(bool defer) { m_deferResume = defer; }
+    void tickEmulation();
 #ifdef CYD_TOUCH_KEYBOARD
     bool usesCydTouch() const override;
     void pollCydTouch() override;
@@ -47,7 +49,6 @@ class EmulatorScreen : public Screen
     void setCydTouchKeyboard(CydTouchKeyboard *keyboard, ISettings *settings);
     void refreshCydKeyboard();
     void openMenuIfRequested();
-    void tickEmulation();
 #endif
   private:
     bool m_emulatorStarted = false;

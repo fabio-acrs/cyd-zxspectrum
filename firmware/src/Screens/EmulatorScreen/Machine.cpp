@@ -23,9 +23,14 @@ void Machine::runEmulator() {
       if (elapsed > 1000)
       {
         lastTime = currentTime;
-        float cycles = cycleCount / (elapsed * 1000.0);
-        float fps = renderer->getFrameCount() / (elapsed / 1000.0);
-        Serial.printf("Executed at %.3FMHz cycles, frame rate=%.2f\n", cycles, fps);
+        const unsigned long frameCount = renderer->getFrameCount();
+        const unsigned long milliMhz = (elapsed == 0) ? 0 : (cycleCount / elapsed);
+        const unsigned long centiFps = (elapsed == 0) ? 0 : ((frameCount * 100000UL) / elapsed);
+        Serial.printf("Executed at %lu.%03luMHz cycles, frame rate=%lu.%02lu\n",
+                      milliMhz / 1000UL,
+                      milliMhz % 1000UL,
+                      centiFps / 100UL,
+                      centiFps % 100UL);
         renderer->resetFrameCount();
         cycleCount = 0;
 #ifndef CYD_NO_EMULATOR_MENU
@@ -52,6 +57,8 @@ void Machine::runEmulator() {
       {
         m_touchPollCallback();
       }
+      // Yield briefly so IDLE/BLE tasks can run and watchdog stays satisfied.
+      vTaskDelay(1 / portTICK_PERIOD_MS);
     }
     else
     {
