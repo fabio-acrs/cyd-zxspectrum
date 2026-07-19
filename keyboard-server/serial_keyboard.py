@@ -49,6 +49,8 @@ def get_key_value(key):
             return key_map['7']
         elif key == keyboard.Key.down:
             return key_map['6']
+        elif key == keyboard.Key.page_up:
+            return 49
         elif key == keyboard.Key.esc:
             return 0
     except KeyError:

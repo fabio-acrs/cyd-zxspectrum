@@ -36,4 +36,5 @@ If `--port` is omitted, the script will prompt you to choose one.
 - Left shift maps to Spectrum shift.
 - Right shift maps to Spectrum symbol shift.
 - Arrow keys are mapped to cursor-style Spectrum movement keys.
+- `PageUp` maps to the emulator menu key, which opens the in-emulator menu/config/load screen.
 - `Esc` maps to key code `0` in the current bridge logic.
